@@ -439,7 +439,7 @@ impl TypeSet {
     /// Return the number of concrete types represented by this typeset.
     pub fn size(&self) -> usize {
         self.lanes.len()
-            * (self.ints.len() + self.floats.len() + self.bools.len() + self.bitvecs.len())
+            * (self.ints.len() + self.floats.len() + self.bools.len() + self.references.len() +self.bitvecs.len()) 
             + self.specials.len()
     }
 
@@ -544,13 +544,14 @@ impl TypeSet {
     /// Return a TypeSet describing the image of self across to_bitvec.
     fn to_bitvec(&self) -> TypeSet {
         assert!(self.bitvecs.is_empty());
-        let all_scalars = &(&self.ints | &self.floats) | &self.bools;
+        let all_scalars = &(&(&self.ints | &self.floats) | &self.bools) | &self.references;
 
         let mut copy = self.clone();
         copy.lanes = num_set![1];
         copy.ints = NumSet::new();
         copy.bools = NumSet::new();
         copy.floats = NumSet::new();
+        copy.references = NumSet::new();
         copy.bitvecs = self
             .lanes
             .iter()
@@ -574,6 +575,9 @@ impl TypeSet {
             }
             for &bits in &self.bools {
                 ret.push(LaneType::bool_from_bits(bits).by(num_lanes));
+            }
+            for &bits in &self.references {
+                ret.push(LaneType::ref_from_bits(bits).by(num_lanes));
             }
             for &bits in &self.bitvecs {
                 assert_eq!(num_lanes, 1);
@@ -679,6 +683,7 @@ impl TypeSet {
         self.ints = &self.ints & &other.ints;
         self.floats = &self.floats & &other.floats;
         self.bools = &self.bools & &other.bools;
+        self.references = &self.references & &other.references;
         self.bitvecs = &self.bitvecs & &other.bitvecs;
 
         let mut new_specials = Vec::new();
@@ -695,6 +700,7 @@ impl TypeSet {
             && self.ints.is_subset(&other.ints)
             && self.floats.is_subset(&other.floats)
             && self.bools.is_subset(&other.bools)
+            && self.references.is_subset(&other.references)
             && self.bitvecs.is_subset(&other.bitvecs)
             && {
                 let specials: HashSet<SpecialType> = HashSet::from_iter(self.specials.clone());
@@ -751,6 +757,12 @@ impl fmt::Debug for TypeSet {
             subsets.push(format!(
                 "bools={{{}}}",
                 Vec::from_iter(self.bools.iter().map(|x| x.to_string())).join(", ")
+            ));
+        }
+        if !self.references.is_empty() {
+            subsets.push(format!(
+                "refs={{{}}}",
+                Vec::from_iter(self.references.iter().map(|x| x.to_string())).join(", ")
             ));
         }
         if !self.bitvecs.is_empty() {
@@ -860,6 +872,7 @@ impl TypeSetBuilder {
             .ints(Interval::All)
             .floats(Interval::All)
             .bools(Interval::All)
+            .references(Interval::All)
             .simd_lanes(Interval::All)
             .bitvecs(Interval::All)
             .specials(ValueType::all_special_types().collect())

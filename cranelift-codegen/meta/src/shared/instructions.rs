@@ -109,11 +109,12 @@ pub fn define(
 
     let Any = &TypeVar::new(
         "Any",
-        "Any integer, float, or boolean scalar or vector type",
+        "Any integer, float, boolean, or references scalar or vector type",
         TypeSetBuilder::new()
             .ints(Interval::All)
             .floats(Interval::All)
             .bools(Interval::All)
+            .references(Interval::All)
             .simd_lanes(Interval::All)
             .includes_scalars(true)
             .finish(),

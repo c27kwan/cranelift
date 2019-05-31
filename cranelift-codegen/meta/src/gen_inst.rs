@@ -660,6 +660,9 @@ fn typeset_to_string(ts: &TypeSet) -> String {
     if ts.specials.len() > 0 {
         result += &format!(", specials=[{}]", iterable_to_string(&ts.specials));
     }
+    if ts.references.len() > 0 {
+        result += &format!(", refs={}", iterable_to_string(&ts.references));
+    }
     result += ")";
     result
 }

@@ -242,6 +242,14 @@ impl LaneType {
         })
     }
 
+    pub fn ref_from_bits(num_bits: u16) -> LaneType {
+        LaneType::ReferenceType(match num_bits {
+            32 => shared_types::Reference::R32,
+            64 => shared_types::Reference::R64,
+            _ => unreachable!("unxpected num bits for ref"),
+        })
+    }
+
     pub fn by(&self, lanes: u16) -> ValueType {
         if lanes == 1 {
             (*self).into()

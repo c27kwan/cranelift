@@ -325,6 +325,8 @@ impl Debug for Type {
             write!(f, "types::F{}", self.lane_bits())
         } else if self.is_vector() {
             write!(f, "{:?}X{}", self.lane_type(), self.lane_count())
+        } else if self.is_ref() {
+            write!(f, "types::R{}", self.lane_bits())
         } else {
             match *self {
                 INVALID => write!(f, "types::INVALID"),

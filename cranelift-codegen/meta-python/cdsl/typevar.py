@@ -218,6 +218,7 @@ class TypeSet(object):
         n.bools = copy(self.bools)
         n.bitvecs = copy(self.bitvecs)
         n.specials = copy(self.specials)
+        n.refs = copy(self.refs)
         return n
 
     def typeset_key(self):
@@ -228,7 +229,8 @@ class TypeSet(object):
                 tuple(sorted(list(self.floats))),
                 tuple(sorted(list(self.bools))),
                 tuple(sorted(list(self.bitvecs))),
-                tuple(sorted(s.name for s in self.specials)))
+                tuple(sorted(s.name for s in self.specials)),
+                tuple(sorted(list(self.refs))))
 
     def __hash__(self):
         # type: () -> int
@@ -261,6 +263,8 @@ class TypeSet(object):
             s += ', bitvecs={}'.format(pp_set(self.bitvecs))
         if len(self.specials) > 0:
             s += ', specials=[{}]'.format(pp_set(self.specials))
+        if len(self.refs) > 0:
+            s += ', refs={}'.format(pp_set(self.refs))
         return s + ')'
 
     def emit_fields(self, fmt):
@@ -305,6 +309,7 @@ class TypeSet(object):
         self.bools.intersection_update(other.bools)
         self.bitvecs.intersection_update(other.bitvecs)
         self.specials.intersection_update(other.specials)
+        self.refs.intersection_update(other.refs)
 
         return self
 
@@ -318,7 +323,8 @@ class TypeSet(object):
             self.floats.issubset(other.floats) and \
             self.bools.issubset(other.bools) and \
             self.bitvecs.issubset(other.bitvecs) and \
-            self.specials.issubset(other.specials)
+            self.specials.issubset(other.specials) and \
+            self.refs.issubset(other.refs)
 
     def lane_of(self):
         # type: () -> TypeSet
