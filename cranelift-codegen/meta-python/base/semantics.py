@@ -49,7 +49,7 @@ bva_wide = Var('bva_wide')
 bvlo = Var('bvlo')
 bvhi = Var('bvhi')
 
-ScalarTS = TypeSet(lanes=(1, 1), ints=True, floats=True, bools=True)
+ScalarTS = TypeSet(lanes=(1, 1), ints=True, floats=True, bools=True, refs=True)
 
 vsplit.set_semantics(
     (lo, hi) << vsplit(x),

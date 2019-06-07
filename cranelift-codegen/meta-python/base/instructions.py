@@ -1760,7 +1760,7 @@ nearest = Instruction(
 # Reference operations
 #
 
-a = Operand('a', Bool)
+a = Operand('a', b1)
 x = Operand('x', Ref)
 
 isnull = Instruction(
@@ -1770,7 +1770,7 @@ isnull = Instruction(
         The condition code determines if the reference type in question is
         null or not.
         """,
-        ins=(x), outs=a)
+        ins=x, outs=a)
 
 #
 # CPU flag operations

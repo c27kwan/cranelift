@@ -197,7 +197,7 @@ class TypeSet(object):
         self.bools = set(filter(legal_bool, self.bools))
         self.bitvecs = interval_to_set(decode_interval(bitvecs,
                                                        (1, MAX_BITVEC)))
-        self.refs = interval_to_set(decode_interval(refs, (8, MAX_BITS)))
+        self.refs = interval_to_set(decode_interval(refs, (32, MAX_BITS)))
         # Allow specials=None, specials=True, specials=(...)
         self.specials = set()  # type: Set[types.SpecialType]
         if isinstance(specials, bool):
@@ -492,6 +492,7 @@ class TypeSet(object):
             ints = interval_to_set(decode_interval(True, (8, MAX_BITS)))
             floats = interval_to_set(decode_interval(True, (32, 64)))
             bools = interval_to_set(decode_interval(True, (1, MAX_BITS)))
+            refs = interval_to_set(decode_interval(True, (32, MAX_BITS)))
 
             # See which combinations have a size that appears in self.bitvecs
             has_t = set()  # type: Set[Tuple[str, int, int]]
@@ -505,6 +506,9 @@ class TypeSet(object):
                 for i in floats:
                     if i * l in self.bitvecs:
                         has_t.add(('f', i, l))
+                for i in refs:
+                    if i * l in self.bitvecs:
+                        has_t.add(('r', i , l))
 
             for (t, width, lane) in has_t:
                 new.lanes.add(lane)
@@ -512,6 +516,8 @@ class TypeSet(object):
                     new.ints.add(width)
                 elif (t == 'b'):
                     new.bools.add(width)
+                elif (t == 'r'):
+                    new.refs.add(width)
                 else:
                     assert t == 'f'
                     new.floats.add(width)
@@ -526,7 +532,7 @@ class TypeSet(object):
         Return the number of concrete types represented by this typeset
         """
         return (len(self.lanes) * (len(self.ints) + len(self.floats) +
-                                   len(self.bools) + len(self.bitvecs)) +
+                                   len(self.bools) + len(self.bitvecs) + len(self.refs)) +
                 len(self.specials))
 
     def concrete_types(self):
@@ -545,6 +551,8 @@ class TypeSet(object):
                 yield by(types.FloatType.with_bits(bits), nlanes)
             for bits in self.bools:
                 yield by(types.BoolType.with_bits(bits), nlanes)
+            for bits in self.refs:
+                yield by(types.ReferenceType.with_bits(bits), nlanes)
             for bits in self.bitvecs:
                 assert nlanes == 1
                 yield types.BVType.with_bits(bits)
@@ -626,7 +634,8 @@ class TypeVar(object):
                     floats=floats,
                     bools=bools,
                     bitvecs=bitvecs,
-                    specials=specials)
+                    specials=specials,
+                    refs=refs)
 
     @staticmethod
     def singleton(typ):
@@ -650,6 +659,7 @@ class TypeVar(object):
         floats = None
         bools = None
         bitvecs = None
+        refs = None
 
         if isinstance(scalar, types.IntType):
             ints = (scalar.bits, scalar.bits)
@@ -659,10 +669,12 @@ class TypeVar(object):
             bools = (scalar.bits, scalar.bits)
         elif isinstance(scalar, types.BVType):
             bitvecs = (scalar.bits, scalar.bits)
+        elif isinstance(scalar, types.ReferenceType):
+            refs = (scalar.bits, scalar.bits)
 
         tv = TypeVar(
                 typ.name, typ.__doc__,
-                ints=ints, floats=floats, bools=bools,
+                ints=ints, floats=floats, bools=bools, refs=refs,
                 bitvecs=bitvecs, simd=lanes)
         return tv
 
