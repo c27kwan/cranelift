@@ -547,6 +547,14 @@ u_id = TailRecipe(
         let imm: i64 = imm.into();
         sink.put4(imm as u32);
         ''')
+# XX /n id with 32-bit immediate sign-extended. UnaryImm version.
+u_id_ref = TailRecipe(
+        'u_id_ref', NullAry, base_size=5, ins=(), outs=GPR,
+        emit='''
+        PUT_OP(bits, rex1(out_reg0), sink);
+        modrm_r_bits(out_reg0, bits, sink);
+        sink.put4(0);
+        ''')
 
 # XX+rd id unary with 32-bit immediate. Note no recipe predicate.
 pu_id = TailRecipe(
@@ -557,6 +565,14 @@ pu_id = TailRecipe(
         PUT_OP(bits | (out_reg0 & 7), rex1(out_reg0), sink);
         let imm: i64 = imm.into();
         sink.put4(imm as u32);
+        ''')
+pu_id_ref = TailRecipe(
+        'pu_id_ref', NullAry, base_size=4, ins=(), outs=GPR,
+        emit='''
+        // The destination register is encoded in the low bits of the opcode.
+        // No ModR/M.
+        PUT_OP(bits | (out_reg0 & 7), rex1(out_reg0), sink);
+        sink.put4(0);
         ''')
 
 # XX+rd id unary with bool immediate. Note no recipe predicate.
@@ -577,6 +593,14 @@ pu_iq = TailRecipe(
         PUT_OP(bits | (out_reg0 & 7), rex1(out_reg0), sink);
         let imm: i64 = imm.into();
         sink.put8(imm as u64);
+        ''')
+
+# XX+rd iq unary with 64-bit immediate.
+pu_iq_ref = TailRecipe(
+        'pu_iq_ref', NullAry, base_size=8, ins=(), outs=GPR,
+        emit='''
+        PUT_OP(bits | (out_reg0 & 7), rex1(out_reg0), sink);
+        sink.put8(0);
         ''')
 
 # XX /n Unary with floating point 32-bit immediate equal to zero.
@@ -2011,6 +2035,34 @@ icscc_id = TailRecipe(
         modrm_rr(out_reg0, 0, sink);
         ''')
 
+icscc_ib_ref = TailRecipe(
+        'icscc_ib_ref', Unary, base_size=2 + 3, ins=GPR, outs=ABCD,
+        emit='''
+        // Comparison instruction.
+        PUT_OP(bits, rex1(in_reg0), sink);
+        modrm_r_bits(in_reg0, bits, sink);
+        sink.put1(0);
+        // `setCC` instruction, no REX.
+        let setcc = 0x94;
+        sink.put1(0x0f);
+        sink.put1(setcc);
+        modrm_rr(out_reg0, 0, sink);
+        ''')
+
+icscc_id_ref = TailRecipe(
+        'icscc_id_ref', Unary, base_size=5 + 3, ins=GPR, outs=ABCD,
+        emit='''
+        // Comparison instruction.
+        PUT_OP(bits, rex1(in_reg0), sink);
+        modrm_r_bits(in_reg0, bits, sink);
+        sink.put4(0);
+        // `setCC` instruction, no REX.
+        let setcc = 0x94;
+        sink.put1(0x0f);
+        sink.put1(setcc);
+        modrm_rr(out_reg0, 0, sink);
+        ''')
+
 # Make a FloatCompare instruction predicate with the supported condition codes.
 
 # Same thing for floating point.
@@ -2054,6 +2106,48 @@ fcscc = TailRecipe(
         sink.put1(0x0f);
         sink.put1(setcc);
         modrm_rr(out_reg0, 0, sink);
+        ''')
+
+# Output metadata for stackmap instructions.
+stackmap = EncRecipe(
+        'stackmap', MultiAry, base_size=0, ins=(), outs=(),
+        emit='''
+        // println!("new stackmap");
+        let stack = &func.stack_slots;
+        let loc = &func.locations;
+        let mut live_ref_in_stack_slot: std::collections::HashSet<crate::ir::StackSlot> = std::collections::HashSet::new();
+        // References can be in registers, but registers are examined separately.
+        // let mut live_ref_in_regs: std::collections::HashSet<crate::isa::RegUnit> = std::collections::HashSet::new();
+        for val in args {
+            if let Some(value_loc) = loc.get(*val) {
+                match *value_loc {
+                    crate::ir::ValueLoc::Stack(stack_slot) => live_ref_in_stack_slot.insert(stack_slot),
+                    // crate::ir::ValueLoc::Reg(reg_unit) => live_ref_in_regs.insert(reg_unit),
+                    _ => false,
+                };
+                // println!("{:?}, {:?}", val, *value_loc);
+            }
+        }
+        // Similar to how SpiderMonkey produce stackmaps, the stackmap will initially be a vec of bool.
+        // Then, we convert the vec into an array of Bitset
+
+        let frame_size = stack.frame_size.unwrap();
+        // let word_size = StackSize::from(isa.pointer_bytes());
+        let mut vec: std::vec::Vec<bool> = std::vec::Vec::with_capacity(frame_size as usize);
+
+        // SpiderMonkey stackmap strcuture:
+        // <trap reg dump> + <general spill> + <frame> + <inbound args>
+
+        // Frame (includes spills and inbound args)
+        for (ss, ssd) in stack.iter() {
+            if live_ref_in_stack_slot.contains(&ss) {
+                vec.push(true);
+            } else {
+                vec.push(false);
+            }
+        }
+        // println!("{:?}", vec);
+        sink.add_stackmap(args);
         ''')
 
 TailRecipe.check_names(globals())

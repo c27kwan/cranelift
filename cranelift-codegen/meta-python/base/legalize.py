@@ -27,6 +27,7 @@ from .instructions import f32const, f64const
 from .instructions import store, load
 from .instructions import br_table
 from .instructions import bitrev
+from .instructions import isnull
 from cdsl.ast import Var
 from cdsl.xform import Rtl, XFormGroup
 
@@ -711,3 +712,11 @@ expand_flags.legalize(
         a << insts.ifcmp_imm(x, imm64(0)),
         insts.trapif(intcc.eq, a, c)
     ))
+
+# References
+for ref_ty in [types.r32, types.r64]:
+    widen.legalize(
+        a << insts.isnull.bind(ref_ty)(b),
+        Rtl(
+            a << insts.isnull(b)
+        ))

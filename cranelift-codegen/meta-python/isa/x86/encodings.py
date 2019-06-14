@@ -329,7 +329,7 @@ enc_i32_i64(base.regspill, r.regspill32, 0x89)
 # Use a 32-bit write for spilling `b1`, `i8` and `i16` to avoid
 # constraining the permitted registers.
 # See MIN_SPILL_SLOT_SIZE which makes this safe.
-for ty in [types.b1, types.i8, types.i16]:
+for ty in [types.b1, types.i8, types.i16, types.r32, types.r64]:
     enc_both(base.spill.bind(ty), r.spillSib32, 0x89)
     enc_both(base.regspill.bind(ty), r.regspill32, 0x89)
 
@@ -346,7 +346,7 @@ enc_i32_i64(base.fill, r.fillSib32, 0x8b)
 enc_i32_i64(base.regfill, r.regfill32, 0x8b)
 
 # Load 32 bits from `b1`, `i8` and `i16` spill slots. See `spill.b1` above.
-for ty in [types.b1, types.i8, types.i16]:
+for ty in [types.b1, types.i8, types.i16, types.r32, types.r64]:
     enc_both(base.fill.bind(ty), r.fillSib32, 0x8b)
     enc_both(base.regfill.bind(ty), r.regfill32, 0x8b)
 
@@ -777,3 +777,28 @@ enc_both(base.fcmp.f64, r.fcscc, 0x66, 0x0f, 0x2e)
 
 enc_both(base.ffcmp.f32, r.fcmp, 0x0f, 0x2e)
 enc_both(base.ffcmp.f64, r.fcmp, 0x66, 0x0f, 0x2e)
+
+#
+# References
+#
+
+# Null references implement as iconst 0
+X86_32.enc(base.null.r32, *r.pu_id_ref(0xb8))
+X86_64.enc(base.null.r32, *r.pu_id_ref.rex(0xb8))
+X86_64.enc(base.null.r32, *r.pu_id_ref(0xb8))
+
+# The 32-bit immediate movl also zero-extends to 64 bits.
+X86_64.enc(base.null.r64, *r.pu_id_ref.rex(0xb8))
+X86_64.enc(base.null.r64, *r.pu_id_ref(0xb8))
+
+# Sign-extended 32-bit immediate.
+X86_64.enc(base.null.r64, *r.u_id_ref.rex(0xc7, rrr=0, w=1))
+# Finally, the 0xb8 opcode takes an 8-byte immediate with a REX.W prefix.
+X86_64.enc(base.null.r64, *r.pu_iq_ref.rex(0xb8, w=1))
+
+# isnull, implemented using the same logic as icmp_imm except with a hardcoded 0.
+enc_r32_r64(base.isnull, r.icscc_ib_ref, 0x83, rrr=7)
+enc_r32_r64(base.isnull, r.icscc_id_ref, 0x81, rrr=7)
+
+X86_64.enc(base.stackmap, r.stackmap, 0)
+X86_32.enc(base.stackmap, r.stackmap, 0)

@@ -1,12 +1,16 @@
 use crate::cursor::{Cursor, FuncCursor};
 use crate::dominator_tree::DominatorTree;
 use crate::ir::{Ebb, Function, InstBuilder, Value};
+use crate::isa::TargetIsa;
 use crate::regalloc::live_value_tracker::LiveValueTracker;
 use crate::regalloc::liveness::Liveness;
 use std::collections::HashSet;
 use std::vec::Vec;
 
-fn get_live_ref_values<'f>(tracker: &mut LiveValueTracker, pos: &FuncCursor<'f>) -> Vec<Value> {
+fn get_live_ref_values<'f>(
+    tracker: &mut LiveValueTracker,
+    pos: &FuncCursor<'f>,
+) -> Vec<Value> {
     // Grab the values that are still live
     let live_info = tracker.live();
 
@@ -22,13 +26,29 @@ fn get_live_ref_values<'f>(tracker: &mut LiveValueTracker, pos: &FuncCursor<'f>)
     live_ref_values
 }
 
+fn ins_and_enc_stackmap_instr<'f>(
+    pos: &mut FuncCursor<'f>,
+    live_ref_values: &Vec<Value>,
+    isa: &TargetIsa,
+) {
+    pos.ins().stackmap(&live_ref_values);
+    // Move cursor to the new stackmap instr to encode it
+    if let Some(inst) = pos.prev_inst() {
+        let ok = pos.func.update_encoding(inst, isa).is_ok();
+        debug_assert!(ok);
+    }
+    // Restore cursor position
+    pos.next_inst();
+}
+
 fn try_insert_savepoint_at_ebb_top<'f>(
     ebb: Ebb,
     pos: &mut FuncCursor<'f>,
-    liveness: &mut Liveness,
-    domtree: &mut DominatorTree,
+    liveness: &Liveness,
+    domtree: &DominatorTree,
     tracker: &mut LiveValueTracker,
-    dest_ebbs: &HashSet<Ebb>
+    dest_ebbs: &HashSet<Ebb>,
+    isa: &TargetIsa,
 ) {
     // Analyse liveness of variables from the top of ebb
     tracker.ebb_top(ebb, &pos.func.dfg, liveness, &pos.func.layout, domtree);
@@ -41,7 +61,7 @@ fn try_insert_savepoint_at_ebb_top<'f>(
     // to such a jump (the converse is not true), so insert stackmap here.
     if dest_ebbs.contains(&ebb) && !live_ref_values.is_empty() { 
         pos.goto_first_inst(ebb);
-        pos.ins().stackmap(&live_ref_values);
+        ins_and_enc_stackmap_instr(pos, &live_ref_values, isa);
     }
 }
 
@@ -49,9 +69,10 @@ fn try_insert_savepoint_at_ebb_top<'f>(
 // the defs and operands by traversing a function's ebbs in reverse layout order.
 pub fn emit_stackmaps(
     func: &mut Function,
-    domtree: &mut DominatorTree,
-    liveness: &mut Liveness,
+    domtree: &DominatorTree,
+    liveness: &Liveness,
     tracker: &mut LiveValueTracker,
+    isa: &TargetIsa,
 ) {
     let mut dest_ebbs: HashSet<Ebb> = HashSet::new();
     let mut curr = func.layout.last_ebb();
@@ -61,7 +82,7 @@ pub fn emit_stackmaps(
         let mut self_loop = false;
         let mut pos = FuncCursor::new(func);
 
-        try_insert_savepoint_at_ebb_top(ebb, &mut pos, liveness, domtree, tracker, &dest_ebbs);
+        try_insert_savepoint_at_ebb_top(ebb, &mut pos, liveness, domtree, tracker, &dest_ebbs, isa);
 
         // From the top of the ebb, step through the instructions
         pos.goto_top(ebb);
@@ -86,11 +107,11 @@ pub fn emit_stackmaps(
                 // Add destination branch to hashset
                 dest_ebbs.insert(dest);
             } else if opcode.is_call() && !live_ref_values.is_empty() {
-                pos.ins().stackmap(&live_ref_values);
+                ins_and_enc_stackmap_instr(&mut pos, &live_ref_values, isa);
             }
         }
         if self_loop {
-            try_insert_savepoint_at_ebb_top(ebb, &mut pos, liveness, domtree, tracker, &dest_ebbs);
+            try_insert_savepoint_at_ebb_top(ebb, &mut pos, liveness, domtree, tracker, &dest_ebbs, isa);
         }
         curr = func.layout.prev_ebb(ebb);
     }
