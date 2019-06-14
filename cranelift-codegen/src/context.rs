@@ -10,7 +10,7 @@
 //! single ISA instance.
 
 use crate::binemit::{
-    relax_branches, shrink_instructions, CodeOffset, MemoryCodeSink, RelocSink, TrapSink,
+    relax_branches, shrink_instructions, CodeOffset, MemoryCodeSink, RelocSink, StackmapSink, TrapSink
 };
 use crate::dce::do_dce;
 use crate::dominator_tree::DominatorTree;
@@ -100,12 +100,13 @@ impl Context {
         mem: &mut Vec<u8>,
         relocs: &mut RelocSink,
         traps: &mut TrapSink,
+        stackmaps: &mut StackmapSink
     ) -> CodegenResult<(CodeOffset, CodeOffset)> {
         let total_size = self.compile(isa)?;
         let old_len = mem.len();
         mem.resize(old_len + total_size as usize, 0);
         let code_size =
-            unsafe { self.emit_to_memory(isa, mem.as_mut_ptr().add(old_len), relocs, traps) };
+            unsafe { self.emit_to_memory(isa, mem.as_mut_ptr().add(old_len), relocs, traps, stackmaps) };
         Ok((code_size, total_size - code_size))
     }
 
@@ -167,9 +168,10 @@ impl Context {
         mem: *mut u8,
         relocs: &mut RelocSink,
         traps: &mut TrapSink,
+        stackmaps: &mut StackmapSink,
     ) -> CodeOffset {
         let _tt = timing::binemit();
-        let mut sink = MemoryCodeSink::new(mem, relocs, traps);
+        let mut sink = MemoryCodeSink::new(mem, relocs, traps, stackmaps);
         isa.emit_function_to_memory(&self.func, &mut sink);
         sink.code_size as CodeOffset
     }

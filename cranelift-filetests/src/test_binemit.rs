@@ -99,6 +99,10 @@ impl binemit::CodeSink for TextSink {
     fn begin_rodata(&mut self) {
         self.code_size = self.offset
     }
+    
+    fn add_stackmap(&mut self, values: &[ir::entities::Value]) {
+        write!(self.text, "{:?} ", values).unwrap(); 
+    }
 }
 
 impl SubTest for TestBinEmit {

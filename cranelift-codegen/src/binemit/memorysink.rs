@@ -16,6 +16,7 @@
 
 use super::{Addend, CodeOffset, CodeSink, Reloc};
 use crate::ir::{ExternalName, JumpTable, SourceLoc, TrapCode};
+use crate::ir::entities::Value;
 use core::ptr::write_unaligned;
 
 /// A `CodeSink` that writes binary machine code directly into memory.
@@ -36,6 +37,7 @@ pub struct MemoryCodeSink<'a> {
     pub code_size: isize,
     relocs: &'a mut RelocSink,
     traps: &'a mut TrapSink,
+    stackmaps: &'a mut StackmapSink,
 }
 
 impl<'a> MemoryCodeSink<'a> {
@@ -43,13 +45,14 @@ impl<'a> MemoryCodeSink<'a> {
     ///
     /// This function is unsafe since `MemoryCodeSink` does not perform bounds checking on the
     /// memory buffer, and it can't guarantee that the `data` pointer is valid.
-    pub unsafe fn new(data: *mut u8, relocs: &'a mut RelocSink, traps: &'a mut TrapSink) -> Self {
+    pub unsafe fn new(data: *mut u8, relocs: &'a mut RelocSink, traps: &'a mut TrapSink, stackmaps: &'a mut StackmapSink) -> Self {
         Self {
             data,
             offset: 0,
             code_size: 0,
             relocs,
             traps,
+            stackmaps,
         }
     }
 }
@@ -134,6 +137,11 @@ impl<'a> CodeSink for MemoryCodeSink<'a> {
     fn begin_rodata(&mut self) {
         self.code_size = self.offset;
     }
+
+    fn add_stackmap(&mut self, val_list: &[Value]) {
+        let ofs = self.offset();
+        self.stackmaps.add_stackmap(ofs, &val_list);
+    }
 }
 
 /// A `TrapSink` implementation that does nothing, which is convenient when
@@ -142,4 +150,17 @@ pub struct NullTrapSink {}
 
 impl TrapSink for NullTrapSink {
     fn trap(&mut self, _offset: CodeOffset, _srcloc: SourceLoc, _code: TrapCode) {}
+}
+
+/// A StackmapSink is a bitmap representing the live reference variables in the stack at given code location  
+pub trait StackmapSink {
+    /// Output a bitmap of the stack at this code offset
+    fn add_stackmap(&mut self, _:CodeOffset, _: &[Value]);
+}
+
+/// Placeholder StackmapSink that does nothing.
+pub struct NullStackmapSink {}
+
+impl StackmapSink for NullStackmapSink {
+    fn add_stackmap(&mut self, _:CodeOffset, _: &[Value]) {}
 }

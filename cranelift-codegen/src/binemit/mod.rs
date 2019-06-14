@@ -7,11 +7,11 @@ mod memorysink;
 mod relaxation;
 mod shrink;
 
-pub use self::memorysink::{MemoryCodeSink, NullTrapSink, RelocSink, TrapSink};
+pub use self::memorysink::{MemoryCodeSink, NullStackmapSink, NullTrapSink, RelocSink, StackmapSink, TrapSink};
 pub use self::relaxation::relax_branches;
 pub use self::shrink::shrink_instructions;
 pub use crate::regalloc::RegDiversions;
-
+use crate::ir::entities::Value;
 use crate::ir::{ExternalName, Function, Inst, JumpTable, SourceLoc, TrapCode};
 use core::fmt;
 
@@ -97,6 +97,9 @@ pub trait CodeSink {
 
     /// Code output is complete, read-only data may follow.
     fn begin_rodata(&mut self);
+
+    /// Add a stackmap here
+    fn add_stackmap(&mut self, _: &[Value]);
 }
 
 /// Report a bad encoding error.
