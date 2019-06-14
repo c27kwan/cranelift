@@ -15,8 +15,8 @@
 //! `CodeSink::put*` methods, so the performance impact of the virtual callbacks is less severe.
 
 use super::{Addend, CodeOffset, CodeSink, Reloc};
-use crate::ir::{ExternalName, JumpTable, SourceLoc, TrapCode};
 use crate::ir::entities::Value;
+use crate::ir::{ExternalName, JumpTable, SourceLoc, TrapCode};
 use core::ptr::write_unaligned;
 
 /// A `CodeSink` that writes binary machine code directly into memory.
@@ -45,7 +45,12 @@ impl<'a> MemoryCodeSink<'a> {
     ///
     /// This function is unsafe since `MemoryCodeSink` does not perform bounds checking on the
     /// memory buffer, and it can't guarantee that the `data` pointer is valid.
-    pub unsafe fn new(data: *mut u8, relocs: &'a mut RelocSink, traps: &'a mut TrapSink, stackmaps: &'a mut StackmapSink) -> Self {
+    pub unsafe fn new(
+        data: *mut u8,
+        relocs: &'a mut RelocSink,
+        traps: &'a mut TrapSink,
+        stackmaps: &'a mut StackmapSink,
+    ) -> Self {
         Self {
             data,
             offset: 0,
@@ -155,12 +160,12 @@ impl TrapSink for NullTrapSink {
 /// A StackmapSink is a bitmap representing the live reference variables in the stack at given code location  
 pub trait StackmapSink {
     /// Output a bitmap of the stack at this code offset
-    fn add_stackmap(&mut self, _:CodeOffset, _: &[Value]);
+    fn add_stackmap(&mut self, _: CodeOffset, _: &[Value]);
 }
 
 /// Placeholder StackmapSink that does nothing.
 pub struct NullStackmapSink {}
 
 impl StackmapSink for NullStackmapSink {
-    fn add_stackmap(&mut self, _:CodeOffset, _: &[Value]) {}
+    fn add_stackmap(&mut self, _: CodeOffset, _: &[Value]) {}
 }

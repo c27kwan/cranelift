@@ -7,10 +7,7 @@ use crate::regalloc::liveness::Liveness;
 use std::collections::HashSet;
 use std::vec::Vec;
 
-fn get_live_ref_values<'f>(
-    tracker: &mut LiveValueTracker,
-    pos: &FuncCursor<'f>,
-) -> Vec<Value> {
+fn get_live_ref_values<'f>(tracker: &mut LiveValueTracker, pos: &FuncCursor<'f>) -> Vec<Value> {
     // Grab the values that are still live
     let live_info = tracker.live();
 
@@ -59,7 +56,7 @@ fn try_insert_savepoint_at_ebb_top<'f>(
     // If the current ebb is in the hashset, there is a jump to this cursor pos
     // from an instruction positioned further down in layout. All loops will lead
     // to such a jump (the converse is not true), so insert stackmap here.
-    if dest_ebbs.contains(&ebb) && !live_ref_values.is_empty() { 
+    if dest_ebbs.contains(&ebb) && !live_ref_values.is_empty() {
         pos.goto_first_inst(ebb);
         ins_and_enc_stackmap_instr(pos, &live_ref_values, isa);
     }
@@ -101,7 +98,7 @@ pub fn emit_stackmaps(
 
             if let Some(dest) = pos.func.dfg[inst].branch_destination() {
                 // Loop within ebb, but savepoint instr was never added. Flag to handle this at the end.
-                if dest == ebb  && !dest_ebbs.contains(&ebb) {
+                if dest == ebb && !dest_ebbs.contains(&ebb) {
                     self_loop = true;
                 }
                 // Add destination branch to hashset
@@ -111,7 +108,9 @@ pub fn emit_stackmaps(
             }
         }
         if self_loop {
-            try_insert_savepoint_at_ebb_top(ebb, &mut pos, liveness, domtree, tracker, &dest_ebbs, isa);
+            try_insert_savepoint_at_ebb_top(
+                ebb, &mut pos, liveness, domtree, tracker, &dest_ebbs, isa,
+            );
         }
         curr = func.layout.prev_ebb(ebb);
     }

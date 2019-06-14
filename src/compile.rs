@@ -75,7 +75,15 @@ fn handle_module(
         }
 
         if flag_disasm {
-            print_all(isa, &mem, code_size, rodata_size, &relocs, &traps, &stackmaps)?;
+            print_all(
+                isa,
+                &mem,
+                code_size,
+                rodata_size,
+                &relocs,
+                &traps,
+                &stackmaps,
+            )?;
         }
     }
 

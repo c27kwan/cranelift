@@ -86,7 +86,7 @@ pub struct PrintStackmaps {
 }
 
 impl PrintStackmaps {
-    pub fn new(flag_print:bool) -> PrintStackmaps {
+    pub fn new(flag_print: bool) -> PrintStackmaps {
         Self {
             flag_print,
             text: String::new(),
@@ -95,7 +95,7 @@ impl PrintStackmaps {
 }
 
 impl binemit::StackmapSink for PrintStackmaps {
-    fn add_stackmap(&mut self, offset : binemit::CodeOffset, values : &[ir::entities::Value]) {
+    fn add_stackmap(&mut self, offset: binemit::CodeOffset, values: &[ir::entities::Value]) {
         if self.flag_print {
             write!(&mut self.text, "add_stackmap: {:?} at {}\n", values, offset).unwrap();
         }
