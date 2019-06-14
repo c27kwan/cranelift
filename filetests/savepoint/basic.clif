@@ -1,0 +1,54 @@
+test savepoint
+
+set enable_stackmap_instruction=true
+target x86_64
+
+function %test(i32, r32, r32) -> r32 {
+    ebb0(v0: i32, v1:r32, v2:r32):
+        jump ebb1(v0)
+    ebb1(v3: i32):
+        v4 = irsub_imm v3, 1
+        jump ebb2(v4)
+    ebb2(v5: i32):
+        brz v5, ebb1(v5)
+        v6 = null.r32
+        v7 = isnull v6
+        brnz v7, ebb2(v0)
+        brnz v0, ebb3
+        jump ebb4
+    ebb3:
+        return v1
+    ebb4:
+        return v2
+}
+
+; sameln: function %test(i32 [%rdi], r32 [%rsi], r32 [%rdx]) -> r32 [%rax] fast {
+; nextln: ebb0(v0: i32 [%rdi], v1: r32 [%rsi], v2: r32 [%rdx]):
+; nextln:   v10 = copy v0
+; nextln:   jump ebb1(v10)
+; nextln: 
+; nextln: ebb1(v3: i32 [%rax]):
+; nextln:   stackmap v1, v2
+; nextln:   v8 = iconst.i32 1
+; nextln:   v4 = isub v8, v3
+; nextln:   jump ebb2(v4)
+; nextln: 
+; nextln: ebb2(v5: i32 [%rcx]):
+; nextln:   stackmap v1, v2
+; nextln:   regmove v5, %rcx -> %rax
+; nextln:   brz v5, ebb1(v5)
+; nextln:   v6 = null.r32 
+; nextln:   v7 = isnull v6
+; nextln:   v9 = copy.i32 v0
+; nextln:   brnz v7, ebb2(v9)
+; nextln:   brnz.i32 v0, ebb3
+; nextln:   jump ebb4
+; nextln: 
+; nextln: ebb3:
+; nextln:   regmove.r32 v1, %rsi -> %rax
+; nextln:   return v1
+; nextln: 
+; nextln: ebb4:
+; nextln:   regmove.r32 v2, %rdx -> %rax
+; nextln:   return v2
+; nextln: }

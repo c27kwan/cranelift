@@ -1,0 +1,122 @@
+test savepoint
+
+set enable_stackmap_instruction=true
+target x86_64
+
+function %loop(i32, r64) -> r64 system_v {
+    ebb0(v0: i32, v1: r64):
+        brz v0, ebb1
+        jump ebb2
+    ebb1:
+        jump ebb3
+    ebb2:
+        brz v0, ebb4
+        jump ebb5
+    ebb3:
+        jump ebb4
+    ebb4:
+        brz v0, ebb3
+        brnz v0, ebb5
+        jump ebb6
+    ebb5:
+        brz v0, ebb4
+        trap user0
+    ebb6:
+        jump ebb7
+    ebb7:
+        return v1
+}
+
+; sameln: function %loop(i32 [%rdi], r64 [%rsi]) -> r64 [%rax] system_v {
+; nextln: ebb0(v0: i32 [%rdi], v1: r64 [%rsi]):
+; nextln:   brz v0, ebb1
+; nextln:   jump ebb2
+; nextln: 
+; nextln: ebb1:
+; nextln:   jump ebb3
+; nextln: 
+; nextln: ebb2:
+; nextln:   brz.i32 v0, ebb4
+; nextln:   jump ebb5
+; nextln: 
+; nextln: ebb3:
+; nextln:   stackmap v1
+; nextln:   jump ebb4
+; nextln: 
+; nextln: ebb4:
+; nextln:   stackmap v1
+; nextln:   brz.i32 v0, ebb3
+; nextln:   brnz.i32 v0, ebb5
+; nextln:   jump ebb6
+; nextln: 
+; nextln: ebb5:
+; nextln:   brz.i32 v0, ebb4
+; nextln:   trap user0
+; nextln: 
+; nextln: ebb6:
+; nextln:   jump ebb7
+; nextln: 
+; nextln: ebb7:
+; nextln:   regmove.r64 v1, %rsi -> %rax
+; nextln:   return v1
+; nextln: }
+
+
+function %self_loop(i32, r32) -> r32, r32 {
+    fn1 = %one() -> r32
+    
+    ebb0(v0: i32, v1: r32):
+        jump ebb1(v0)
+    ebb1(v2: i32):
+        v3 = iadd_imm v2, -1
+        v4 = iconst.i32 0xA
+        v5 = call fn1()
+        br_icmp ugt v3, v4, ebb2
+        v6 = call fn1()
+        brnz v3, ebb1(v3)
+        jump ebb2
+    ebb2:
+        return v1, v5
+}
+
+; sameln: function %self_loop(i32 [%rdi], r32 [%rsi]) -> r32 [%rax], r32 [%rdx] fast {
+; nextln: ss0 = spill_slot 4
+; nextln: ss1 = spill_slot 4
+; nextln: ss2 = spill_slot 4
+; nextln: ss3 = spill_slot 4
+; nextln: sig0 = () -> r32 [%rax] fast
+; nextln: fn1 = %one sig0
+; nextln: 
+; nextln: ebb0(v10: i32 [%rdi], v11: r32 [%rsi]):
+; nextln:   v0 = spill v10
+; nextln:   v1 = spill v11
+; nextln:   jump ebb1(v0)
+; nextln: 
+; nextln: ebb1(v2: i32 [ss1]):
+; nextln:   stackmap v1
+; nextln:   v12 = fill v2
+; nextln:   v13 = iadd_imm v12, -1
+; nextln:   v3 = spill v13
+; nextln:   v14 = iconst.i32 10
+; nextln:   v4 = spill v14
+; nextln:   v7 = func_addr.i64 fn1
+; nextln:   stackmap v1
+; nextln:   v15 = call_indirect sig0, v7()
+; nextln:   v5 = spill v15
+; nextln:   v16 = fill v3
+; nextln:   v17 = fill v4
+; nextln:   v8 = icmp ugt v16, v17
+; nextln:   brnz v8, ebb2
+; nextln:   v9 = func_addr.i64 fn1
+; nextln:   stackmap v1, v5
+; nextln:   v6 = call_indirect sig0, v9()
+; nextln:   v18 = fill v3
+; nextln:   brnz v18, ebb1(v3)
+; nextln:   jump ebb2
+; nextln: 
+; nextln: ebb2:
+; nextln:   v19 = fill.r32 v1
+; nextln:   v20 = fill.r32 v5
+; nextln:   regmove v20, %rcx -> %rdx
+; nextln:   return v19, v20
+; nextln: }

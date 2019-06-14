@@ -1,0 +1,31 @@
+test savepoint
+
+set enable_stackmap_instruction=true
+target x86_64
+
+function %fake_loop(r64) -> r64 {
+    ebb0(v0: r64):
+        jump ebb2(v0)
+    ebb1(v1: r64):
+        jump ebb3(v1)
+    ebb2(v2: r64):
+        jump ebb1(v2)
+    ebb3(v3: r64):
+        return v3
+}
+
+; sameln: function %fake_loop(r64 [%rdi]) -> r64 [%rax] fast {
+; nextln: ebb0(v0: r64 [%rdi]):
+; nextln:   jump ebb2(v0)
+; nextln: 
+; nextln: ebb1(v1: r64 [%rdi]):
+; nextln:   stackmap v1
+; nextln:   jump ebb3(v1)
+; nextln: 
+; nextln: ebb2(v2: r64 [%rdi]):
+; nextln:   jump ebb1(v2)
+; nextln: 
+; nextln: ebb3(v3: r64 [%rdi]):
+; nextln:   regmove v3, %rdi -> %rax
+; nextln:   return v3
+; nextln: }
