@@ -2,7 +2,7 @@
 
 use crate::cursor::{Cursor, FuncCursor};
 use crate::dominator_tree::DominatorTree;
-use crate::ir::{Function, Inst, InstructionData, Opcode, Type};
+use crate::ir::{Function, Inst, InstructionData, Opcode, Type, Value, ValueList};
 use crate::scoped_hash_map::ScopedHashMap;
 use crate::timing;
 use core::cell::{Ref, RefCell};
@@ -29,6 +29,30 @@ fn is_load_and_not_readonly(inst_data: &InstructionData) -> bool {
         }
         _ => inst_data.opcode().can_load(),
     }
+}
+
+pub enum MemAddr {
+    Complex(ValueList),
+    Single(Value),
+    Stack(Value),
+}
+
+pub struct Access {
+    size: u32,
+    address: MemAddr,
+    val: Value,
+}
+
+
+impl Access {
+    pub fn new(size: u32, address: MemAddr, val: Value) -> Self {
+        Self {
+            size,
+            address,
+            val,
+        }
+    }
+
 }
 
 /// Wrapper around `InstructionData` which implements `Eq` and `Hash`
@@ -66,27 +90,27 @@ pub fn do_simple_gvn(func: &mut Function, domtree: &mut DominatorTree) {
     let pos = RefCell::new(FuncCursor::new(func));
 
     let mut visible_values: ScopedHashMap<HashKey, Inst> = ScopedHashMap::new();
+    let mut load_store_buffer: ScopedHashMap<HashKey, Value> = ScopedHashMap::new();
     let mut scope_stack: Vec<Inst> = Vec::new();
 
     for &ebb in domtree.cfg_postorder().iter().rev() {
+        println!("{:?}", ebb);
         {
             // Pop any scopes that we just exited.
             let layout = &pos.borrow().func.layout;
-            loop {
-                if let Some(current) = scope_stack.last() {
-                    if domtree.dominates(*current, ebb, layout) {
-                        break;
-                    }
-                } else {
+            while let Some(current) = scope_stack.last() {
+                if domtree.dominates(*current, ebb, layout) { // don't pop because it dominates us
                     break;
                 }
                 scope_stack.pop();
                 visible_values.decrement_depth();
+                load_store_buffer.decrement_depth();
             }
 
             // Push a scope for the current block.
             scope_stack.push(layout.first_inst(ebb).unwrap());
             visible_values.increment_depth();
+            load_store_buffer.increment_depth();
         }
 
         pos.borrow_mut().goto_top(ebb);
@@ -104,6 +128,27 @@ pub fn do_simple_gvn(func: &mut Function, domtree: &mut DominatorTree) {
             if opcode.is_branch() && !opcode.is_terminator() {
                 scope_stack.push(func.layout.next_inst(inst).unwrap());
                 visible_values.increment_depth();
+                load_store_buffer.increment_depth();
+            }
+
+            if opcode.can_store() { // TODO: Load-store forwarding
+                println!("{:?}", &func.dfg[inst]);
+                match &func.dfg[inst] {
+                    // InstructionData::Store {opcode, args, flags, offset} => {
+                    //     // Access::new(32, MemAddr::Single(args[0]), args[1]); // TODO: find out how to get exact number
+                    // }
+                    InstructionData::StoreComplex {opcode, args, flags, offset} => {
+                        println!("{:?}", func.dfg);
+
+                    }
+                    // InstructionData::StackStore {opcode, arg, stack_slot, offset} => {
+
+                    // }
+                    _ => { // Unknown, get rid of everything.
+                        println!("Unknown");
+                    }
+                }
+
             }
 
             if trivially_unsafe_for_gvn(opcode) {
@@ -111,9 +156,13 @@ pub fn do_simple_gvn(func: &mut Function, domtree: &mut DominatorTree) {
             }
 
             // These are split up to separate concerns.
-            if is_load_and_not_readonly(&func.dfg[inst]) {
+            if is_load_and_not_readonly(&func.dfg[inst]) { // TODO: redundant load elimination
                 continue;
             }
+
+            // if opcode.can_load() { // TODO: Load-store forwarding
+
+            // }
 
             let ctrl_typevar = func.dfg.ctrl_typevar(inst);
             let key = HashKey {
@@ -121,11 +170,13 @@ pub fn do_simple_gvn(func: &mut Function, domtree: &mut DominatorTree) {
                 ty: ctrl_typevar,
                 pos: &pos,
             };
+            println!("{:?}", func.dfg[inst].clone());
+            println!("{:?}", ctrl_typevar);
             use crate::scoped_hash_map::Entry::*;
             match visible_values.entry(key) {
                 Occupied(entry) => {
                     debug_assert!(domtree.dominates(*entry.get(), inst, &func.layout));
-                    // If the redundant instruction is representing the current
+                    // If the redundant instruction (curr) is representing the current
                     // scope, pick a new representative.
                     let old = scope_stack.last_mut().unwrap();
                     if *old == inst {
